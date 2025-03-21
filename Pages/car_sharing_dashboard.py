@@ -74,3 +74,6 @@ with col2:
 with col3:
     st.metric(label="Total Distance (km)", value=f"{total_distance:,.2f}")
 
+# Aperçu final du dataframe trips_df_merged
+st.write("✅ Aperçu final du DataFrame fusionné :", trips_df_merged.head())
+
