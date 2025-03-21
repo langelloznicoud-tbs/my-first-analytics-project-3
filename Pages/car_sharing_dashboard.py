@@ -2,8 +2,7 @@ import streamlit as st
 import pandas as pd
 
 st.title("🚗 Car Sharing Dashboard")
-st.write("This is where the dashboard for the car sharing dataset will go.")
-
+st.write("This dashboard provides insights into the car sharing dataset.")
 
 # Function to load CSV files into dataframes
 @st.cache_data
@@ -13,59 +12,42 @@ def load_data():
     cities = pd.read_csv("Datasets/cities.csv")
     return cars, trips, cities
 
+# Load datasets
 cars_df, trips_df, cities_df = load_data()
 
-st.write("Cars Dataset", cars_df.head())
-st.write("Trips Dataset", trips_df.head())
-st.write("Cities Dataset", cities_df.head())
-
-# Fusionner trips avec cars en adaptant les clés de jointure
+# Merge trips with cars using appropriate keys
 trips_df_merged = trips_df.merge(cars_df, left_on='car_id', right_on='id', how='left')
 
-
-# Fusionner trips_merged avec cities
+# Merge trips_df_merged with cities
 trips_df_merged = trips_df_merged.merge(cities_df, on='city_id', how='left')
 
-# Vérifier la fusion
-st.write("Aperçu des données fusionnées :", trips_df_merged.head())
+# Drop unnecessary columns
+trips_df_merged = trips_df_merged.drop(columns=["id_x", "id_y", "car_id", "customer_id", "city_id"])
 
-# Supprimer les colonnes inutiles
-trips_df_merged = trips_df_merged.drop(columns=["id_x", "id_y", "car_id", "customer_id", "city_id"])  
-
-st.write("Données après nettoyage:", trips_df_merged.head())
-
-# Convertir pickup_time et dropoff_time en datetime
+# Convert pickup_time and dropoff_time to datetime
 trips_df_merged["pickup_time"] = pd.to_datetime(trips_df_merged["pickup_time"])
 trips_df_merged["dropoff_time"] = pd.to_datetime(trips_df_merged["dropoff_time"])
 
-# Créer une nouvelle colonne "pickup_date" en extrayant uniquement la date
+# Create a new column 'pickup_date' by extracting only the date
 trips_df_merged["pickup_date"] = trips_df_merged["pickup_time"].dt.date
 
-# Vérifier si la transformation a bien fonctionné
-st.write("Aperçu des données après conversion :", trips_df_merged[["pickup_time", "dropoff_time", "pickup_date"]].head())
-
-# Création du filtre dans la barre latérale
+# Sidebar filter - Car Brand
 cars_brand = st.sidebar.multiselect(
-    "Select the Car Brand",
-    options=trips_df_merged["brand"].unique(), # Liste des marques uniques
-    default=trips_df_merged["brand"].unique() # Sélectionne toutes les marques par défaut
+    "Select Car Brand",
+    options=trips_df_merged["brand"].unique(),
+    default=trips_df_merged["brand"].unique()
 )
 
-# Filtrer le dataframe en fonction des marques sélectionnées
+# Filter data by selected brands
 if cars_brand:
     trips_df_merged = trips_df_merged[trips_df_merged["brand"].isin(cars_brand)]
 
-# Affichage des données filtrées
-st.write("Aperçu des trajets filtrés :", trips_df_merged.head())
+# Business Metrics Calculation
+total_trips = len(trips_df_merged)
+total_distance = trips_df_merged["distance"].sum()
+top_car = trips_df_merged.groupby("model")["revenue"].sum().idxmax()
 
-# Calculer les métriques business
-total_trips = len(trips_df_merged)  # Nombre total de trajets
-total_distance = trips_df_merged["distance"].sum()  # Somme des distances des trajets
-
-# Trouver le modèle de voiture générant le plus de revenus
-top_car = trips_df_merged.groupby("model")["revenue"].sum().idxmax()  # Modèle avec le plus de revenus
-
-# Afficher les métriques dans des colonnes
+# Display Metrics in Columns
 col1, col2, col3 = st.columns(3)
 with col1:
     st.metric(label="Total Trips", value=total_trips)
@@ -74,6 +56,28 @@ with col2:
 with col3:
     st.metric(label="Total Distance (km)", value=f"{total_distance:,.2f}")
 
-# Aperçu final du dataframe trips_df_merged
-st.write("✅ Aperçu final du DataFrame fusionné :", trips_df_merged.head())
+# Final DataFrame Preview
+st.write("✅ Final Merged DataFrame Preview:", trips_df_merged.head())
 
+st.subheader("📊 Data Visualizations")
+
+# 1️⃣ Trips Over Time
+trips_over_time = trips_df_merged.groupby("pickup_date").size()
+st.write("### Trips Over Time")
+st.line_chart(trips_over_time)
+
+# 2️⃣ Revenue Per Car Model
+revenue_per_model = trips_df_merged.groupby("model")["revenue"].sum().sort_values(ascending=False)
+st.write("### Revenue Per Car Model")
+st.bar_chart(revenue_per_model)
+
+# 3️⃣ Cumulative Revenue Growth Over Time
+revenue_over_time = trips_df_merged.groupby("pickup_date")["revenue"].sum().cumsum()
+st.write("### Cumulative Revenue Growth Over Time")
+st.area_chart(revenue_over_time)
+
+# Bonus: Number of Trips Per Car Model
+trips_df_per_model = trips_df_merged["model"].value_counts().reset_index()
+trips_df_per_model.columns = ["model", "trip_count"]
+st.subheader("🚘 Number of Trips Per Car Model")
+st.bar_chart(trips_df_per_model.set_index("model"))
